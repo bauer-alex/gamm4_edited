@@ -345,9 +345,10 @@ gamm4 <- function(formula,random=NULL,family=gaussian(),data=list(),weights=NULL
     br <- lme4::ranef(ret$mer, condVar = FALSE) ## a named list
     # TODO set condVar to FALSE since this leads to RAM problems for bigger data
     #      Maybe introduce a function argument to let the user set condVar,
-    #      and document that condVar = TRUE can save RAM, if not needed.
-    #      Or: Look into ranef() if the final object size is the problem or if
-    #          some computation step in between can be made more RAM friendly.
+    #      and document that condVar = FALSE can save RAM, if it's not needed.
+    #      Alternatively:
+    #      Look into ranef() if the final object size is the problem or if
+    #      some computation step in between can be made more RAM friendly.
   }
   ## CHANGE AB END
   if (G$nsdf) p <- bf[1:G$nsdf] else p <- array(0,0) ## fixed parametric componet

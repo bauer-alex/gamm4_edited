@@ -137,8 +137,15 @@ gamm4 <- function(formula,random=NULL,family=gaussian(),data=list(),weights=NULL
   mf <- match.call(expand.dots=FALSE)
   
   mf$formula <- gp$fake.formula
-  mf$REML <- mf$verbose <- mf$control <- mf$start <- mf$family <- mf$scale <-
-    mf$knots <- mf$random <- mf$... <-NULL ## mf$weights?
+  ## CHANGE AB
+  if (!use_newestCodeVersion) { # old code version
+    mf$REML <- mf$verbose <- mf$control <- mf$start <- mf$family <- mf$scale <-
+      mf$knots <- mf$random <- mf$... <-NULL ## mf$weights?
+  } else { # new code version
+    mf$REML <- mf$verbose <- mf$control <- mf$start <- mf$family <- mf$scale <-
+      mf$knots <- mf$random <- mf$nAGQ <- mf$use_newestCodeVersion <-  mf$... <-NULL ## mf$weights?
+  }
+  ## CHANGE AB END
   mf$drop.unused.levels <- drop.unused.levels
   mf[[1]] <- as.name("model.frame")
   pmf <- mf

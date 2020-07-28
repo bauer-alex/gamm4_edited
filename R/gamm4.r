@@ -138,13 +138,9 @@ gamm4 <- function(formula,random=NULL,family=gaussian(),data=list(),weights=NULL
   
   mf$formula <- gp$fake.formula
   ## CHANGE AB
-  if (!use_newestCodeVersion) { # old code version
-    mf$REML <- mf$verbose <- mf$control <- mf$start <- mf$family <- mf$scale <-
-      mf$knots <- mf$random <- mf$... <-NULL ## mf$weights?
-  } else { # new code version
-    mf$REML <- mf$verbose <- mf$control <- mf$start <- mf$family <- mf$scale <-
-      mf$knots <- mf$random <- mf$nAGQ <- mf$use_newestCodeVersion <-  mf$... <-NULL ## mf$weights?
-  }
+  # NOTE added the two new arguments nAGQ and use_newestCodeVersion to the code
+  mf$REML <- mf$verbose <- mf$control <- mf$start <- mf$family <- mf$scale <-
+    mf$knots <- mf$random <- mf$nAGQ <- mf$use_newestCodeVersion <-  mf$... <-NULL ## mf$weights?
   ## CHANGE AB END
   mf$drop.unused.levels <- drop.unused.levels
   mf[[1]] <- as.name("model.frame")

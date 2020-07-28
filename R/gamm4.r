@@ -117,7 +117,10 @@ gamm4.setup<-function(formula,pterms,
 
 gamm4 <- function(formula,random=NULL,family=gaussian(),data=list(),weights=NULL,
                   subset=NULL,na.action,knots=NULL,drop.unused.levels=TRUE,REML=TRUE,
-                  control=NULL,start=NULL,verbose=0L,...) {
+                  control=NULL,start=NULL,verbose=0L,
+                  nAGQ = 1L, # CHANGE AB: introduced nAGQ argument, in accordance to ?lme4::glmer. TODO Argument still to document
+                  use_newestCodeVersion = FALSE, # CHANGE AB: temporary argument to switch my code changes on and off
+                  ...) {
   # Routine to fit a GAMM to some data. Fixed and smooth terms are defined in the formula, but the wiggly 
   # parts of the smooth terms are treated as random effects. The onesided formula random defines additional 
   # random terms. 
@@ -229,7 +232,29 @@ gamm4 <- function(formula,random=NULL,family=gaussian(),data=list(),weights=NULL
     for (i in 1:n.sr) { ## loop through random effect smooths
       k <- ind[sn[i]==tn] ## which term should contain G$random[[i]] 
       ii <- (b$reTrms$Gp[k]+1):b$reTrms$Gp[k+1]
-      b$reTrms$Zt[ii,] <- as(t(G$random[[i]]),"dgCMatrix")
+      ## CHANGE AB
+      message("Starting dgCMatrix conversion step...") # temporary message to showcase how long this step takes
+      if (!use_newestCodeVersion) { # old code version
+        b$reTrms$Zt[ii,] <- as(t(G$random[[i]]),"dgCMatrix")
+      } else { # new code version
+        # NOTE for hundreds or thousands of random effects, overwriting the ii rows
+        #      is increadibly slow; instead: drop the rows and rbind them
+        # NOTE The current code assumes that the ii rows are always the final
+        #      final rows of the object. If this is sometimes not the case,
+        #      the code has to be adapted.
+        new_data <- as(t(G$random[[i]]),"dgCMatrix")
+        dimnames <- b$reTrms$Zt@Dimnames # save dimnames, to restore them at the end
+        if (identical(ii, tail(1:nrow(b$reTrms$Zt), length(ii)))) { # ensure that ii are the very last rows
+          b$reTrms$Zt <- b$reTrms$Zt[1:(min(ii)-1),]  # delete final rows
+          b$reTrms$Zt <- rbind(b$reTrms$Zt, new_data) # rbind the new values
+        } else { # ii are some rows in between
+          # TODO
+          # are the ii rows always appearing as a consecutive block at the end?
+        }
+        b$reTrms$Zt@Dimnames <- dimnames # restore dimnames
+      }
+      message("Done with the dgCMatrix conversion step!") # temporary message to showcase how long this step takes
+      ## CHANGE AB END
       b$reTrms$cnms[[k]] <- attr(G$random[[i]],"s.label") 
     }
   }
@@ -250,12 +275,35 @@ gamm4 <- function(formula,random=NULL,family=gaussian(),data=list(),weights=NULL
   } else { ## generalized case...
     ## Create the deviance function for optimizing over theta:
     devfun <- do.call(mkGlmerDevfun, b)
-    ## Optimize over theta using a rough approximation (i.e. nAGQ = 0):
-    opt <- optimizeGlmer(devfun,start=start,verbose=verbose,control=control$optCtrl)
-    ## Update the deviance function for optimizing over theta and beta:
-    devfun <- updateGlmerDevfun(devfun, b$reTrms)
-    ## Optimize over theta and beta:
-    opt <- optimizeGlmer(devfun, stage=2,start=start,verbose=verbose,control=control$optCtrl)
+    ## CHANGE AB
+    if (!use_newestCodeVersion) { # old code version
+      ## Optimize over theta using a rough approximation (i.e. nAGQ = 0):
+      opt <- optimizeGlmer(devfun,start=start,verbose=verbose,control=control$optCtrl)
+      ## Update the deviance function for optimizing over theta and beta:
+      devfun <- updateGlmerDevfun(devfun, b$reTrms)
+      ## Optimize over theta and beta:
+      opt <- optimizeGlmer(devfun, stage=2,start=start,verbose=verbose,control=control$optCtrl)
+
+    } else { # new code version
+      
+      ## Optimize over theta using a rough approximation (i.e. nAGQ = 0):
+      if (control$nAGQ0initStep) {
+        opt <- optimizeGlmer(devfun,start=start,verbose=verbose,control=control$optCtrl,
+                             optimizer    = control$optimizer[[1]],
+                             calc.derivs  = control$calc.derivs,
+                             boundary.tol = control$boundary.tol)
+      }
+      ## Update the deviance function for optimizing over theta and beta:
+      devfun <- updateGlmerDevfun(devfun, b$reTrms)
+      ## Optimize over theta and beta:
+      opt <- optimizeGlmer(devfun, stage=2,start=start,verbose=verbose,control=control$optCtrl,
+                           optimizer    = control$optimizer[[2]],
+                           calc.derivs  = control$calc.derivs,
+                           nAGQ         = nAGQ,
+                           boundary.tol = control$boundary.tol)
+
+    }
+    ## CHANGE AB END
     ## Package up the results:
     ret$mer <- mkMerMod(environment(devfun), opt, b$reTrms, fr = b$fr)
   }
@@ -287,7 +335,18 @@ gamm4 <- function(formula,random=NULL,family=gaussian(),data=list(),weights=NULL
   Xfp <- G$Xf
   ## Transform  parameters back to the original space....
   bf <- as.numeric(lme4::fixef(ret$mer)) ## the fixed effects
-  br <- lme4::ranef(ret$mer) ## a named list
+  ## CHANGE AB
+  if (!use_newestCodeVersion) { # old code version
+    br <- lme4::ranef(ret$mer) ## a named list
+  } else { # new code version
+    br <- lme4::ranef(ret$mer, condVar = FALSE) ## a named list
+    # TODO set condVar to FALSE since this leads to RAM problems for bigger data
+    #      Maybe introduce a function argument to let the user set condVar,
+    #      and document that condVar = TRUE can save RAM, if not needed.
+    #      Or: Look into ranef() if the final object size is the problem or if
+    #          some computation step in between can be made more RAM friendly.
+  }
+  ## CHANGE AB END
   if (G$nsdf) p <- bf[1:G$nsdf] else p <- array(0,0) ## fixed parametric componet
   if (G$m>0) for (i in 1:G$m) {
     fx <- G$smooth[[i]]$fixed 
@@ -468,7 +527,14 @@ gamm4 <- function(formula,random=NULL,family=gaussian(),data=list(),weights=NULL
   if (!is.null(G$Xcentre)) object$Xcentre <- G$Xcentre ## any column centering applied to smooths
   
   ret$gam<-object
-  class(gamm4) <- c("gamm4","list")
+  ## CHANGE AB
+  if (!use_newestCodeVersion) { # old code version
+    class(gamm4) <- c("gamm4","list")
+  } else { # new code version
+    class(ret) <- c("gamm4","list")
+  }
+  ## CHANGE AB END
+  
   ret
   
 } ## end of gamm4

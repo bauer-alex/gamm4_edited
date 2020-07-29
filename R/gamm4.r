@@ -236,7 +236,6 @@ gamm4 <- function(formula,random=NULL,family=gaussian(),data=list(),weights=NULL
       k <- ind[sn[i]==tn] ## which term should contain G$random[[i]] 
       ii <- (b$reTrms$Gp[k]+1):b$reTrms$Gp[k+1]
       ## CHANGE AB
-      message("Starting dgCMatrix conversion step...") # temporary message to showcase how long this step takes
       if (!use_newestCodeVersion) { # old code version
         b$reTrms$Zt[ii,] <- as(t(G$random[[i]]),"dgCMatrix")
       } else { # new code version
@@ -256,7 +255,6 @@ gamm4 <- function(formula,random=NULL,family=gaussian(),data=list(),weights=NULL
         }
         b$reTrms$Zt@Dimnames <- dimnames # restore dimnames
       }
-      message("Done with the dgCMatrix conversion step!") # temporary message to showcase how long this step takes
       ## CHANGE AB END
       b$reTrms$cnms[[k]] <- attr(G$random[[i]],"s.label") 
     }
@@ -375,7 +373,20 @@ gamm4 <- function(formula,random=NULL,family=gaussian(),data=list(),weights=NULL
         B[ind,ind] <- t(D*t(G$smooth[[i]]$trans.U))
     }
     ## and finally transform G$Xf into fitting parameterization...
-    Xfp[,ind] <- G$Xf[,ind,drop=FALSE]%*%B[ind,ind,drop=FALSE]
+    ## CHANGE AB
+    if (!use_newestCodeVersion) { # old code version
+      Xfp[,ind] <- G$Xf[,ind,drop=FALSE]%*%B[ind,ind,drop=FALSE]
+    } else { # new code version
+      # NOTE again, instead of overwriting the 'ind' columns, delete them
+      #      and cbind the new values
+      # TODO the current code assumes that the 'ind' columns are always the
+      #      very last columns. Check if this is always the case and if not,
+      #      adapt the code appropriately
+      Xfp <- Xfp[, -ind, drop=FALSE]
+      dat_new <- G$Xf[,ind,drop=FALSE]%*%B[ind,ind,drop=FALSE]
+      Xfp <- cbind(Xfp, dat_new)
+    }
+    ## CHANGE AB END
     
   }
   

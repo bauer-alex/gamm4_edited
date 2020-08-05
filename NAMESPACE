@@ -4,6 +4,7 @@ import(mgcv)
 import(methods)
 #importFrom(Matrix,t,crossprod,solve,rowSums)
 export(gamm4)
+export(coef.merMod_new)
 importFrom("stats", "as.formula", "delete.response", "deviance",
      "gaussian", "reformulate", "residuals")
 importFrom("utils", "packageVersion")
